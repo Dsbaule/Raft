@@ -2,7 +2,7 @@ from enum import Enum
 from random import randint
 import threading
 import socket
-import sys
+import time
 
 # Raft node states:
 class State(Enum):
@@ -13,7 +13,6 @@ class State(Enum):
         return str(self.name)
 
 class Node():
-
     def __init__(self, numNodes = 1, num = 0):
         self.numNodes = numNodes
         self.num = num
@@ -27,7 +26,6 @@ class Node():
         socket.setdefaulttimeout(6)
         self.server.bind(('', 8000))
         self.leaderevent = threading.Event()
-        threading.Thread(target=self.send_heartbeat).start()
         self.run()
 
     def __str__(self):
@@ -54,40 +52,44 @@ class Node():
         self.state = State.LEADER
         self.leaderevent.set()
 
-    def run(self):
-        self.server.settimeout(self.getTimeout())
-        self.server.listen()
+    def run(self):  
+        print('Starting Node!')
+        threading.Thread(target=self.send_heartbeat).start()
+        while True:
+            self.server.settimeout(self.getTimeout())
+            self.server.listen(self.numNodes)
 
-        try:
-            (clientsocket, address) = self.server.accept()
-            message = clientsocket.recv(1024)
-            message_type, message_value = pickle.loads(message)
+            try:
+                (clientsocket, address) = self.server.accept()
+                message = clientsocket.recv(1024)
+                message_type, message_value = pickle.loads(message)
 
-            if message_type == 'Heartbeat':
-                if message_value > self.term:
-                    self.term = message_value
-                    self.set_follower()
-                print(self.name + ': Hearbeat recieved')
+                if message_type == 'Heartbeat':
+                    if message_value > self.term:
+                        self.term = message_value
+                        self.set_follower()
+                    print(self.name + ': Hearbeat recieved')
 
-            elif message_type == 'Request votes':
-                new_term, new_leader = message_value
-                if new_term > self.term:
-                    self.set_follower()
-                    print('Voting for' + new_leader)
-                    self.term = new_term
-                    try:
-                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        s.connect((address[0], 8001))
-                        message = ('1', self.term)
-                        s.send(pickle.dumps(message))
-                        s.close()
-                    except ConnectionRefusedError:
-                        pass
-        except socket.timeout:
-            print('Timeout reached, becoming candidate')
-            self.term += 1
-            self.set_candidate()
-            threading.Thread(target=ask_votes).start()
+                elif message_type == 'Request votes':
+                    new_term, new_leader = message_value
+                    if new_term > self.term:
+                        self.set_follower()
+                        print('Voting for' + new_leader)
+                        self.term = new_term
+                        try:
+                            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                            s.connect((address[0], 8001))
+                            message = ('1', self.term)
+                            s.send(pickle.dumps(message))
+                            s.close()
+                        except ConnectionRefusedError:
+                            pass
+            except socket.timeout:
+                if self.follower():
+                    print('Timeout reached, becoming candidate')
+                    self.term += 1
+                    self.set_candidate()
+                    threading.Thread(target=self.ask_votes).start()
 
     def ask_votes(self):
         print('Asking for votes')
@@ -97,7 +99,7 @@ class Node():
         vote_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         vote_server.bind(('', 8001))
         vote_server.settimeout(self.getTimeout())
-        vote_server.listen()
+        vote_server.listen(self.numNodes)
 
         for node in self.other_nodes:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -122,26 +124,13 @@ class Node():
             print('Elected. Becoming leader')
             self.set_leader()
 
-    def run_leader(self):
-        if (randint(1, 10) == 1):
-            print('Simulating failure!')
-            sleep(10)
-        print('Sending heartbeat')
-        for node in self.other_nodes:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            host_ip = socket.gethostbyname(node)
-            s.connect((host_ip, 8000))
-            message = ('Heartbeat', (self.value, self.log, self.uncommited))
-            s.send(pickle.dumps(message))
-            s.close()
-
 
     def send_heartbeat(self):
         while True:
             if self.leader():
                 if (randint(1, 10) == 1):
                     print('Simulating failure!')
-                    sleep(10)
+                    time.sleep(10)
                 print(self.name + ': Sending heartbeats')
                 for node in self.other_nodes:
                     print(self.name + ': Sending heartbeat to ' + node)
@@ -151,12 +140,9 @@ class Node():
                     message = ('Heartbeat', 0)
                     s.send(pickle.dumps(message))
                     s.close()
-                sleep(self.heartrate)
+                time.sleep(self.heartrate)
             else:
                 self.leaderevent.wait()
 
-
     def getTimeout(self):
         return randint(150, 300)/50
-
-node = Node()
