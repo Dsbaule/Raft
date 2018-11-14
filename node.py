@@ -3,6 +3,7 @@ from random import randint
 import threading
 import socket
 import time
+import pickle
 
 # Raft node states:
 class State(Enum):
@@ -52,7 +53,7 @@ class Node():
         self.state = State.LEADER
         self.leaderevent.set()
 
-    def run(self):  
+    def run(self):
         print('Starting Node!')
         threading.Thread(target=self.send_heartbeat).start()
         while True:
@@ -103,6 +104,7 @@ class Node():
 
         for node in self.other_nodes:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            print(node)
             host_ip = socket.gethostbyname(node)
             s.connect((host_ip, 8000))
             message = ('Request votes', self.term)
@@ -146,3 +148,6 @@ class Node():
 
     def getTimeout(self):
         return randint(150, 300)/50
+
+print('Starting container!')
+node = Node(1, 1)

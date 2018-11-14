@@ -1,0 +1,17 @@
+version: '3'
+services:
+  node1:
+    build: .
+    container_name: Node0
+    ports:
+     - "8000:8000"
+  node2:
+    build: .
+    container_name: Node1
+    ports:
+     - "8001:8000"
+  node3:
+    build: .
+    container_name: Node2
+    ports:
+     - "8002:8000"

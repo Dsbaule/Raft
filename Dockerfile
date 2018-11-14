@@ -14,4 +14,4 @@ RUN pip install --trusted-host pypi.python.org -r requirements.txt
 ENV NAME World
 
 # Run app.py when the container launches
-CMD ["python3", "-u", "app.py"]
+CMD ["python3", "-u", "node.py"]
