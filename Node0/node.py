@@ -36,7 +36,7 @@ class Node():
         return self.state is State.FOLLOWER
 
     def candidate(self):
-        return self.state is State.FOLLOWER
+        return self.state is State.CANDIDATE
 
     def leader(self):
         return self.state is State.LEADER
@@ -46,7 +46,7 @@ class Node():
         self.leaderevent.clear()
 
     def set_candidate(self):
-        self.state = State.FOLLOWER
+        self.state = State.CANDIDATE
         self.leaderevent.clear()
 
     def set_leader(self):
@@ -69,14 +69,14 @@ class Node():
                     if message_value > self.term:
                         self.term = message_value
                         self.set_follower()
-                    print(self.name + ': Hearbeat recieved')
+                    print('\t' + str(self) + ': Hearbeat received')
 
                 elif message_type == 'Request votes':
                     new_term, new_leader = message_value
                     if new_term > self.term:
                         self.set_follower()
-                        print('Voting for' + new_leader)
                         self.term = new_term
+                        print('\t' + str(self) + ': Voting for ' + new_leader)
                         try:
                             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                             s.connect((address[0], 8001))
@@ -87,13 +87,13 @@ class Node():
                             pass
             except socket.timeout:
                 if self.follower():
-                    print('Timeout reached, becoming candidate')
                     self.term += 1
                     self.set_candidate()
+                    print(str(self) + 'Timeout reached, becoming candidate')
                     threading.Thread(target=self.ask_votes).start()
 
     def ask_votes(self):
-        print('Asking for votes')
+        print(str(self) + 'Asking for votes')
 
         votes = 1
 
@@ -104,10 +104,9 @@ class Node():
 
         for node in self.other_nodes:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print(node)
             host_ip = socket.gethostbyname(node)
             s.connect((host_ip, 8000))
-            message = ('Request votes', self.term)
+            message = ('Request votes', (self.term, self.name))
             s.send(pickle.dumps(message))
             s.close()
 
@@ -123,31 +122,29 @@ class Node():
         vote_server.close()
 
         if votes > len(self.other_nodes)//2:
-            print('Elected. Becoming leader')
             self.set_leader()
+            print(str(self) + 'Elected. Becoming leader')
 
 
     def send_heartbeat(self):
         while True:
             if self.leader():
                 if (randint(1, 10) == 1):
-                    print('Simulating failure!')
+                    print('!!!!! ' + str(self) + ': Simulating failure !!!!!')
                     time.sleep(10)
-                print(self.name + ': Sending heartbeats')
-                for node in self.other_nodes:
-                    print(self.name + ': Sending heartbeat to ' + node)
-                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    host_ip = socket.gethostbyname(node)
-                    s.connect((host_ip, 8000))
-                    message = ('Heartbeat', 0)
-                    s.send(pickle.dumps(message))
-                    s.close()
-                time.sleep(self.heartrate)
+                else:
+                    print(str(self) + ': Sending heartbeats')
+                    for node in self.other_nodes:
+                        # print(str(self) + ': Sending heartbeat to ' + node)
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        host_ip = socket.gethostbyname(node)
+                        s.connect((host_ip, 8000))
+                        message = ('Heartbeat', 0)
+                        s.send(pickle.dumps(message))
+                        s.close()
+                    time.sleep(self.heartrate)
             else:
                 self.leaderevent.wait()
 
     def getTimeout(self):
         return randint(150, 300)/50
-
-print('Starting container!')
-node = Node(1, 1)
