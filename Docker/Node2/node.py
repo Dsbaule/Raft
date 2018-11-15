@@ -124,6 +124,8 @@ class Node():
         if votes > len(self.other_nodes)//2:
             self.set_leader()
             print(str(self) + 'Elected. Becoming leader')
+        else:
+            self.set_follower()
 
 
     def send_heartbeat(self):
