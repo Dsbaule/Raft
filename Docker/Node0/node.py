@@ -77,14 +77,16 @@ class Node():
                         self.set_follower()
                         self.term = new_term
                         print('\t' + str(self) + ': Voting for ' + new_leader)
-                        try:
-                            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                            s.connect((address[0], 8001))
-                            message = ('1', self.term)
-                            s.send(pickle.dumps(message))
-                            s.close()
-                        except ConnectionRefusedError:
-                            pass
+                        message = ('1', self.term)
+                    else:
+                        message = ('0', self.term)
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.connect((address[0], 8001))
+                        s.send(pickle.dumps(message))
+                        s.close()
+                    except ConnectionRefusedError:
+                        pass
             except socket.timeout:
                 if self.follower():
                     self.term += 1
